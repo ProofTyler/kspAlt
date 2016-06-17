@@ -1,3 +1,5 @@
+#include "support.h"
+
 #define HALT 0
 #define PUSHC 1
 #define ADD 2
@@ -68,9 +70,26 @@
 #define OP_CODE(c) ((c & 0xFF000000) >> 24)
 #define SIGN_EXTEND(i) ((i) & 0x00800000 ? (i) | 0xFF000000 : (i)) 
 
+#define MSB (1 << (8 * sizeof(unsigned int) - 1))
+#define IS_PRIM(objRef) (((objRef)->size & MSB) == 0)
+#define GET_SIZE(objRef) ((objRef)->size & ~MSB)
+#define GET_REFS(objRef) ((ObjRef *)(objRef)->data)
+
 typedef int bool;
 #define true 1
 #define false 0
+
+
+
+
+typedef struct {
+	bool isObjRef;
+	union {
+		ObjRef objRef;
+		int number;
+	} u;
+} StackSlot;
+
 
 #define STARTED_NJVM "Ninja Virtual Machine started\n"
 #define STOPPED_NJVM "Ninja Virtual Machine stopped\n"

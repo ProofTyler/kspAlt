@@ -1,0 +1,4 @@
+pushc	2
+pushc	2
+add
+halt

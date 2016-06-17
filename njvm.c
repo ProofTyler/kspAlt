@@ -3,38 +3,63 @@
 #include <stdlib.h>
 #include "procedures.h"
 
-int stackMachine[9999];
+#include "bigint.h"
+
+#include <time.h>
+
+
+StackSlot stack[10000];
+ObjRef *sda;
+ObjRef rg;
+
 int sp = 0;
-int *sda;
 int fp = 0;
 int version = 4;
 int debugPc = 0;
-int r = 0;
 bool isDebug = false;
+
+ObjRef legeObjektInHeap(int value){
+	ObjRef objRef = malloc(sizeof(unsigned int) + sizeof(int));
+	objRef->size = sizeof(int);
+	*(int *)objRef->data = value;
+	return objRef;
+}
+
+void pushObjRef(ObjRef objRef){
+	stack[stackPointer].isObjRef = TRUE;
+	stack[stackPointer].u.objRef = objRef;
+	stackPointer++;	
+}
+
+
+ObjRef popObjRef(void){
+	stackPointer = stackPointer - 1;
+	return stack[stackPointer].u.objRef;
+}
 
 /*
 	@param val: push this value on 'top-of-Stack'
 */
-void push(int val){	
-	stackMachine[sp] = val;
-	sp++;
+void push(int immediateValue){
+	stack[stackPointer].isObjRef = FALSE;
+	stack[stackPointer].u.number = immediateValue;
+	stackPointer++;
 }
 
 /*
 	@return: Return int value from 'top-of-stack'
 */
-int pop(){	
-	int val = stackMachine[sp-1];
-	sp--;
-	return val;	
+int pop(void){
+	stackPointer = stackPointer - 1;
+	return stack[stackPointer].u.number;
 }
 
 /*
  * @return: Takes the value from the sda on position n
  *
 */
-int getGlobalVal(int n){
-	return sda[n];
+int pushSDA(int adresse){
+	sda[adresse] = popObjRef();
 }
 
 /*
@@ -42,10 +67,11 @@ int getGlobalVal(int n){
  * the value is from the top of the stack
  *
 */
+ /*
 void setGlobalVal(int n){
 	sda[n] = pop();
 }
-
+*/
 int getPc(){
 	return debugPc;
 }
@@ -71,55 +97,57 @@ void runCode(unsigned int instuctions[]){
 			case HALT:				
 				stop = true;
 				break;
-			case PUSHC:				
-				push(immediateVal);
+			case PUSHC:	
+				pushObjRef(immediateVal);
 				break;
 			case ADD:
-				v1 = pop();
-				v2 = pop();
-				push(v2+v1);				
+				v1 = popObjRef();
+				v2 = popObjRef();
+				pushObjRef(v2+v1);				
 				break;
 			case SUB:
-				v1 = pop();
-				v2 = pop();
-				push(v2-v1);
+				v1 = popObjRef();
+				v2 = popObjRef();
+				pushObjRef(v2-v1);
 				break;
 			case MUL:
-				v1 = pop();
-				v2 = pop();
-				push(v2*v1);
+				v1 = popObjRef();
+				v2 = popObjRef();
+				pushObjRef(v2*v1);
 				break;
 			case DIV:
-				v1 = pop();
-				v2 = pop();
-				if(v1 != 0) push(v2/v1);
+				v1 = popObjRef();
+				v2 = popObjRef();
+				if(v1 != 0) pushObjRef(v2/v1);
 				else printf("Teilen durch 0 nicht möglich!!\n");				
 				break;
 			case MOD:
-				v1 = pop();
-				v2 = pop();
-				if(v1 != 0) push(v2%v1);
+				v1 = popObjRef();
+				v2 = popObjRef();
+				if(v1 != 0) pushObjRef(v2%v1);
 				else printf("Modulo durch 0 nicht möglich!!\n");
 				break;
 			case RDINT:
 				scanf("%d",&readInt);
-				push(readInt);
+				pushObjRef(readInt);
 				break;
 			case WRINT:
-				printf("%d", pop());
+				printf("%d", popObjRef());
 				break;
 			case RDCHR:
 				scanf("%c", &readChar);
-    			push(readChar);
+    			pushObjRef(readChar);
 				break;
 			case WRCHR:
-				printf("%c", pop());
+				printf("%c", popObjRef());
 				break;
 			case PUSHG:
-				push(getGlobalVal(immediateVal));
+				pushObjRef(sda[immediateValue]);
+				/*pushObjRef(getGlobalVal(immediateVal));*/
 				break;
 			case POPG:
-				setGlobalVal(immediateVal);
+				pushSDA(immediateValue);
+				/*setGlobalVal(immediateVal);*/
 				break;
 			case ASF:
 				push(fp);
@@ -131,70 +159,75 @@ void runCode(unsigned int instuctions[]){
 				fp = pop();
 				break;
 			case POPL:
-				stackMachine[immediateVal] = pop();
+				/*stackMachine[immediateVal] = pop();*/
+				stack[framepointer + immediateValue].u.number = pop();
 				break;
 			case PUSHL:
-				push(stackMachine[fp + immediateVal]);
+				/*push(stackMachine[fp + immediateVal]);*/
+				push(stack[framepointer + immediateValue].u.number);
 				break;
 			case EQ:
-				v1 = pop();
-				v2 = pop();
-				(v2 == v1) ? push(true) : push(false);
+				v1 = popObjRef();
+				v2 = popObjRef();
+				(v2 == v1) ? pushObjRef(true) : pushObjRef(false);
 				break;
 			case NE:
-				v1 = pop();
-				v2 = pop();
-				(v2 != v1) ? push(true) : push(false);
+				v1 = popObjRef();
+				v2 = popObjRef();
+				(v2 != v1) ? pushObjRef(true) : pushObjRef(false);
 				break;
 			case LT:
-				v1 = pop();
-				v2 = pop();
+				v1 = popObjRef();
+				v2 = popObjRef();
 				(v2 < v1) ? push(true) : push(false);
 				break;	
 			case LE:
-				v1 = pop();
-				v2 = pop();
+				v1 = popObjRef();
+				v2 = popObjRef();
 				(v2 <= v1) ? push(true) : push(false);
 				break;
 			case GT:
-				v1 = pop();
-				v2 = pop();
+				v1 = popObjRef();
+				v2 = popObjRef();
 				(v2 > v1) ? push(true) : push(false);
 				break;
 			case GE:
-				v1 = pop();
-				v2 = pop();
+				v1 = popObjRef();
+				v2 = popObjRef();
 				(v2 >= v1) ? push(true) : push(false);
 				break;
 			case JMP:
 				pc = immediateVal;
 				break;
 			case BRF:
-				v1 = pop();
-				if(v1 == false) pc = immediateVal;
+				v1 = popObjRef();
+				if(v1 == true) break;
+				else pc = immediateVal;
 				break;
 			case BRT:
-				v1 = pop();
-				if(v1 == false) pc = immediateVal;
+				v1 = popObjRef();
+				if(v1 == false) break;
+				else pc = immediateVal;
 				break;
 			case CALL:
 				push(pc);
 				pc = immediateVal;
 				break;
 			case RET:
-				pc = pop();
+				pc = stack[stackPointer-1].u.number;
+				/*pc = pop();*/
 				break;
 			case DROP:
-				while(immediateVal != 1){
+				while(immediateValue != 0){
 					pop();
-					immediateVal--;
+					immediateValue--;
 				}
 				break;
 			case PUSHR:
-				push(r);
+				pushObjRef(rg);
 				break;
 			case POPR:
-				r = pop();
+				rg = popObjRef();
 				break;
 		}
 		if(isDebug){
