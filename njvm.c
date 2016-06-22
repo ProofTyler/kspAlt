@@ -3,8 +3,6 @@
 #include <stdlib.h>
 #include "procedures.h"
 
-#include "bigint.h"
-
 #include <time.h>
 
 
@@ -12,8 +10,8 @@ StackSlot stack[10000];
 ObjRef *sda;
 ObjRef rg;
 
-int sp = 0;
-int fp = 0;
+int stackPointer = 0;
+int framepointer = 0;
 int version = 4;
 int debugPc = 0;
 bool isDebug = false;
@@ -58,7 +56,7 @@ int pop(void){
  * @return: Takes the value from the sda on position n
  *
 */
-int pushSDA(int adresse){
+void pushSDA(int adresse){
 	sda[adresse] = popObjRef();
 }
 
@@ -85,8 +83,10 @@ void runCode(unsigned int instuctions[]){
 	int immediateVal;
 	int pc = 0;
 	bool stop = false;
+	/*
 	int v1,v2;
 	int readInt;
+	*/
 	char readChar;
 	if(isDebug)	pc = getPc();
 	while(!stop){		
@@ -97,117 +97,124 @@ void runCode(unsigned int instuctions[]){
 			case HALT:				
 				stop = true;
 				break;
-			case PUSHC:	
-				pushObjRef(immediateVal);
+			case PUSHC:
+				bigFromInt(immediateVal); pushObjRef(bip.res);
 				break;
 			case ADD:
-				v1 = popObjRef();
-				v2 = popObjRef();
-				pushObjRef(v2+v1);				
+				bip.op2 = popObjRef();
+				bip.op1 = popObjRef();
+				bigAdd();pushObjRef(bip.res);				
 				break;
 			case SUB:
-				v1 = popObjRef();
-				v2 = popObjRef();
-				pushObjRef(v2-v1);
+				bip.op2 = popObjRef();
+				bip.op1 = popObjRef();
+				bigSub();pushObjRef(bip.res);
 				break;
 			case MUL:
-				v1 = popObjRef();
-				v2 = popObjRef();
-				pushObjRef(v2*v1);
+				bip.op2 = popObjRef();
+				bip.op1 = popObjRef();
+				bigMul();pushObjRef(bip.res);
 				break;
 			case DIV:
-				v1 = popObjRef();
-				v2 = popObjRef();
-				if(v1 != 0) pushObjRef(v2/v1);
-				else printf("Teilen durch 0 nicht möglich!!\n");				
+				bip.op2 = popObjRef();
+				bip.op1 = popObjRef();
+				bigDiv();pushObjRef(bip.res);			
 				break;
 			case MOD:
-				v1 = popObjRef();
-				v2 = popObjRef();
-				if(v1 != 0) pushObjRef(v2%v1);
-				else printf("Modulo durch 0 nicht möglich!!\n");
+				bip.op2 = popObjRef();
+				bip.op1 = popObjRef();
+				/*bigMod();pushObjRef(bip.res);*/
 				break;
 			case RDINT:
-				scanf("%d",&readInt);
-				pushObjRef(readInt);
+				bigRead(stdin);
+				pushObjRef(bip.res);
 				break;
 			case WRINT:
-				printf("%d", popObjRef());
+				/*printf("%d", popObjRef());*/
+				bip.op1 = popObjRef(); bigPrint(stdout);
 				break;
 			case RDCHR:
-				scanf("%c", &readChar);
-    			pushObjRef(readChar);
+				scanf("%c", &readChar);bigFromInt((unsigned char)readChar); 
+					    pushObjRef(bip.res);
 				break;
 			case WRCHR:
-				printf("%c", popObjRef());
+				/*printf("%c", popObjRef());*/
+				bip.op1 = popObjRef(); 
+				printf("%c", bigToInt());
 				break;
 			case PUSHG:
-				pushObjRef(sda[immediateValue]);
+				pushObjRef(sda[immediateVal]);
 				/*pushObjRef(getGlobalVal(immediateVal));*/
 				break;
 			case POPG:
-				pushSDA(immediateValue);
+				pushSDA(immediateVal);
 				/*setGlobalVal(immediateVal);*/
 				break;
 			case ASF:
-				push(fp);
-				fp = sp;
-				sp = sp + immediateVal;
+				push(framepointer);
+				framepointer = stackPointer;
+				stackPointer = stackPointer + immediateVal;
 				break;
 			case RSF:
-				sp = fp;
-				fp = pop();
+				stackPointer = framepointer;
+				framepointer = pop();
 				break;
 			case POPL:
 				/*stackMachine[immediateVal] = pop();*/
-				stack[framepointer + immediateValue].u.number = pop();
+				stack[framepointer + immediateVal].u.number = pop();
 				break;
 			case PUSHL:
 				/*push(stackMachine[fp + immediateVal]);*/
-				push(stack[framepointer + immediateValue].u.number);
+				push(stack[framepointer + immediateVal].u.number);
 				break;
 			case EQ:
-				v1 = popObjRef();
-				v2 = popObjRef();
-				(v2 == v1) ? pushObjRef(true) : pushObjRef(false);
+				bip.op2 = popObjRef();
+				bip.op1 = popObjRef();
+				bigCmp() == 0 ? bigFromInt(1) : bigFromInt(0);
+				pushObjRef(bip.res);
 				break;
 			case NE:
-				v1 = popObjRef();
-				v2 = popObjRef();
-				(v2 != v1) ? pushObjRef(true) : pushObjRef(false);
+				bip.op2 = popObjRef();
+				bip.op1 = popObjRef();
+				bigCmp() != 0 ? bigFromInt(1) : bigFromInt(0);
+				pushObjRef(bip.res);
 				break;
 			case LT:
-				v1 = popObjRef();
-				v2 = popObjRef();
-				(v2 < v1) ? push(true) : push(false);
+				bip.op2 = popObjRef();
+				bip.op1 = popObjRef();
+				bigCmp() < 0 ? bigFromInt(1) : bigFromInt(0);
+				pushObjRef(bip.res);
 				break;	
 			case LE:
-				v1 = popObjRef();
-				v2 = popObjRef();
-				(v2 <= v1) ? push(true) : push(false);
+				bip.op2 = popObjRef();
+				bip.op1 = popObjRef();
+				bigCmp() <= 0 ? bigFromInt(1) : bigFromInt(0);
+				pushObjRef(bip.res);
 				break;
 			case GT:
-				v1 = popObjRef();
-				v2 = popObjRef();
-				(v2 > v1) ? push(true) : push(false);
+				bip.op2 = popObjRef();
+				bip.op1 = popObjRef();
+				bigCmp() > 0 ? bigFromInt(1) : bigFromInt(0);
+				pushObjRef(bip.res);
 				break;
 			case GE:
-				v1 = popObjRef();
-				v2 = popObjRef();
-				(v2 >= v1) ? push(true) : push(false);
+				bip.op2 = popObjRef();
+				bip.op1 = popObjRef();
+				bigCmp() >= 0 ? bigFromInt(1) : bigFromInt(0);
+				pushObjRef(bip.res);
 				break;
 			case JMP:
 				pc = immediateVal;
 				break;
 			case BRF:
-				v1 = popObjRef();
-				if(v1 == true) break;
+				bip.op1 = popObjRef(); 
+				if(bigToInt() == TRUE) break;
 				else pc = immediateVal;
 				break;
 			case BRT:
-				v1 = popObjRef();
-				if(v1 == false) break;
-				else pc = immediateVal;
+				bip.op1 = popObjRef(); 
+				if(bigToInt() == FALSE) break;
+				else pc = immediateVal; 
 				break;
 			case CALL:
 				push(pc);
@@ -218,16 +225,24 @@ void runCode(unsigned int instuctions[]){
 				/*pc = pop();*/
 				break;
 			case DROP:
-				while(immediateValue != 0){
+				while(immediateVal != 0){
 					pop();
-					immediateValue--;
+					immediateVal--;
 				}
 				break;
+
 			case PUSHR:
 				pushObjRef(rg);
 				break;
 			case POPR:
 				rg = popObjRef();
+				break;
+			case DUP: 
+				/*
+				ref = popObjRef();
+				pushObjRef(ref);
+				pushObjRef(ref);
+				*/
 				break;
 		}
 		if(isDebug){
@@ -357,6 +372,7 @@ void printCode(unsigned int instuctions[]){
 
 
 void showInConsole(){
+	/*
 	int spCounter;
 	int sdaCounter = 15;
 	spCounter = sp;
@@ -383,7 +399,7 @@ void showInConsole(){
 	}
 
 	printf("----------------------------------\n");
-	
+	*/
 }
 
 void debug(unsigned int *instructions, int irSize){
